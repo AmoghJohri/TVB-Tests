@@ -59,6 +59,16 @@ Subjects
     │   ...
 ```
 
+### File Descriptions
+
+1. **FC.txt**: Empirical Functional Connectivity Matrix
+2. **ROIts.txt**: Empirical fMRI time-series (region-wise)
+3. **connectivity.h5**: Contains relevant data from the other-files for TVB input.
+4. **J_i.txt**: Feedback Inhibhition Control parameter values.
+5. **PCorr.txt**: Pearson's R values for correlation between empirical functional connectivity matrix and simulated functional connectivity matrix.
+6. **dummy_rsHRF.txt**: Contains Resting-State HRF (dummy) values for each region.
+7. All the other files contain the relevant information for defining an input for TVB.
+
 ### Tutorials
 * **exploring_the_rsHRF_BOLD_Monitor.ipynb** is a tutorial for using the RestingStateHRF kernel which has been proposed as an addition to the existing TVB BOLD monitor.
 * **rsHRF_Mediated_Brain_Dynamics.ipynb** is a tutorial for the complete workflow as described below:
@@ -75,3 +85,7 @@ Subjects
 
 ### Data
 The dataset has been obtained from [https://openneuro.org/datasets/ds001226/versions/00001](https://openneuro.org/datasets/ds001226/versions/00001), and preprocessed according to TVB requirements.
+
+### NOTE
+1. The version used for python TVB in the above tutorials correspond to https://github.com/AmoghJohri/tvb-root/tree/amogh. These changes have not yet been reflected in the TVB software and hence, this code does not represent the final form. The jupyter notebooks require to be in the same directory as tvb-root (or appropriate changes can be made to the import paths).
+2. The *main.c* file corresponds to https://github.com/AmoghJohri/fast_tvb/tree/rsHRF_convolution. These changes have not yet been reflected in fast_tvb and hence, the code does not represent the final form.
