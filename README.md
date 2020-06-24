@@ -67,7 +67,7 @@ Subjects
 4. **J_i.txt**: Feedback Inhibhition Control parameter values.
 5. **PCorr.txt**: Pearson's R values for correlation between empirical functional connectivity matrix and simulated functional connectivity matrix.
 6. **dummy_rsHRF.txt**: Contains Resting-State HRF (dummy) values for each region.
-7. All the other files contain the relevant information for defining an input for TVB.
+7. All the other files contain relevant information for defining the input in TVB.
 
 ### Tutorials
 * **exploring_the_rsHRF_BOLD_Monitor.ipynb** is a tutorial for using the RestingStateHRF kernel which has been proposed as an addition to the existing TVB BOLD monitor.
