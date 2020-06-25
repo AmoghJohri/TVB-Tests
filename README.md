@@ -38,6 +38,12 @@ Input
 |   tract_lengths.txt
 └─> weights.txt
 
+C_Input
+|   param_set.txt
+|   ROIts_retrievedHRF.txt
+|   tract_lengths.txt
+└─> weights.txt
+
 Subjects
 │   CONXXTX (Control/Patients + number + T1/T2)
 |   |   FC.txt

@@ -58,24 +58,24 @@ def getHRF(subject_id, TR):
                     bold_sig, para, temporal_mask, 1
                 )
     hrfa = np.dot(bf, beta_hrf[np.arange(0, bf.shape[1]), :]) # retrieved HRF
-    np.savetxt('./Input/ROIts_retrievedHRF.txt', hrfa.T, delimiter=' ')
+    np.savetxt('./C_Input/ROIts_retrievedHRF.txt', hrfa.T, delimiter=' ')
     return hrfa.shape[0]
 
 def make_input(subject_id, TR):
     # book-keeping for file arrangement, parameter values, etc, for each subject
 
-    try : os.remove("./Input/weights.txt")
+    try : os.remove("./C_Input/weights.txt")
     except : pass
-    try: os.remove("./Input/tract_lengths.txt")
+    try: os.remove("./C_Input/tract_lengths.txt")
     except: pass
-    try: os.remove("./Input/ROIts_retrievedHRF.txt")
+    try: os.remove("./C_Input/ROIts_retrievedHRF.txt")
     except: pass
 
     path = "./Subjects/" + str(subject_id) + "/"
-    np.savetxt('./Input/weights.txt', np.loadtxt(path + "weights.txt"), delimiter=' ')
-    np.savetxt('./Input/tract_lengths.txt', np.loadtxt(path + "tract_lengths.txt"), delimiter=' ')
+    np.savetxt('./C_Input/weights.txt', np.loadtxt(path + "weights.txt"), delimiter=' ')
+    np.savetxt('./C_Input/tract_lengths.txt', np.loadtxt(path + "tract_lengths.txt"), delimiter=' ')
     hrf_len = getHRF(subject_id, TR)
-    f = open("Input/param_set.txt", "r")
+    f = open("./C_Input/param_set.txt", "r")
     for line in f:
         temp = line.split()
         break
@@ -85,7 +85,7 @@ def make_input(subject_id, TR):
     temp[7] = str(int(TR * 1000 * 200)) 
     temp[8] = str(hrf_len)
     temp[9] = str(int(TR * 1000))
-    f = open("Input/param_set.txt", "w") 
+    f = open("./C_Input/param_set.txt", "w") 
     for each in temp:
         f.write(each)
         f.write(" ") 
@@ -112,13 +112,13 @@ def getCorrelation(subject_id):
 
 def alterGlobalCoupling(G):
     # alters the global coupling parameter for each iteration through parameter space exploration
-    f = open("Input/param_set.txt", "r")
+    f = open("./C_Input/param_set.txt", "r")
     for line in f:
         temp = line.split()
         break
     f.close()
     temp[1] = str(G) 
-    f = open("Input/param_set.txt", "w") 
+    f = open("./C_Input/param_set.txt", "w") 
     for each in temp:
         f.write(each)
         f.write(" ") 
