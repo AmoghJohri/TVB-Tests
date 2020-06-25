@@ -1,3 +1,7 @@
+/*   Code created by Michael Schirner on 12.08.16
+     m.schirner@fu-berlin.de
+     Copyright (c) 2016 Michael Schirner. All rights reserved. */
+
 /* compile -> gcc main_temporalDomain.c -lpthread -lm -lgsl -lgslcblas -o tvbii */
 /* execute -> ./tvbii <param_filename> <SC_weights_filename> <SC_tract_lengths_filename> <rsHRF_filename> <num_of_thread> */ 
 
