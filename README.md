@@ -44,17 +44,9 @@ C_Input
 |   tract_lengths.txt
 └─> weights.txt
 
-Subjects
+Data
 │   CONXXTX (Control/Patients + number + T1/T2)
-|   |   FC.txt
-|   |   ROIts.txt
-│   │   areas.txt
-│   │   average_orientations.txt
-│   │   centres.txt
-|   |   connectivity.h5
-│   │   cortical.txt
-│   │   hemisphere.txt
-|   |   region_labels.txt
+|   |   FC.mat
 │   │   tract_lengths.txt
 │   │   weights.txt
 |   |   Output
@@ -68,12 +60,13 @@ Subjects
 ### File Descriptions
 
 1. **FC.txt**: Empirical Functional Connectivity Matrix
-2. **ROIts.txt**: Empirical fMRI time-series (region-wise)
-3. **connectivity.h5**: Contains relevant data from the other-files for TVB input.
-4. **J_i.txt**: Feedback Inhibhition Control parameter values.
-5. **PCorr.txt**: Pearson's R values for correlation between empirical functional connectivity matrix and simulated functional connectivity matrix.
-6. **dummy_rsHRF.txt**: Contains Resting-State HRF (dummy) values for each region.
-7. All the other files contain relevant information for defining the input in TVB.
+2. **FC.mat**: Contains the Empirical Functional Connectivity Matrix, Region-wise fMRI Time Series and Corresponding BOLD Repetition Time for each Subject
+3. **ROIts.txt**: Empirical fMRI time-series (region-wise)
+4. **connectivity.h5**: Contains relevant data from the other-files for TVB input.
+5. **J_i.txt**: Feedback Inhibhition Control parameter values.
+6. **PCorr.txt**: Pearson's R values for correlation between empirical functional connectivity matrix and simulated functional connectivity matrix.
+7. **dummy_rsHRF.txt**: Contains Resting-State HRF (dummy) values for each region.
+8. All the other files contain relevant information for defining the input in TVB.
 
 ### Tutorials
 * **exploring_the_rsHRF_BOLD_Monitor.ipynb** is a tutorial for using the RestingStateHRF kernel which has been proposed as an addition to the existing TVB BOLD monitor.

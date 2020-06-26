@@ -1,3 +1,4 @@
+# importing libraries
 import os
 import scipy
 import nitime 
@@ -22,13 +23,15 @@ def executeC():
     s = subprocess.check_call("gcc main.c -lpthread -lm -lgsl -lgslcblas -o tvbii; ./tvbii param_set weights tract_lengths ROIts_retrievedHRF 1", shell = True) 
 
 def get_path(group_name, subject_num, test_num):
+    # gets the path for the directory corresponding to each combination of group, subject and test
     if subject_num < 9: return "./Data/" + group_name + "0" + str(subject_num) + test_num
     else: return "./Data/" + group_name + str(subject_num) + test_num
 
 def getHRF(group_id, subject_id):
-    if subject_id < 10: path = "./Data/" + group_id + "0" + str(subject_id) + "/"
-    else: path = "./Data/" + group_id + str(subject_id) + "/"
+    # retrieves the HRF from the empirical fMRI time-series
+    path = get_path(group_id, subject_id, "T1")
     mat = scipy.io.loadmat(path + "FC.mat")
+    # parameters required for HRF retrieval
     para = {}
     para['estimation'] = 'canon2dd'
     para['passband'] = [0.01, 0.08]
@@ -59,18 +62,18 @@ def getHRF(group_id, subject_id):
                 )
     hrfa = np.dot(bf, beta_hrf[np.arange(0, bf.shape[1]), :])
     np.savetxt('./C_Input/ROIts_retrievedHRF.txt', hrfa.T, delimiter=' ')
+    # returns the length of the retrieved HRF and the BOLD Repetition Time
     return hrfa.shape[0], para['TR']
 
 def make_input(group_id, subject_id):
+    # does all the book-keeping with respect to arranging and channeling the input files
     try : os.remove("./C_Input/weights.txt")
     except : pass
     try: os.remove("./C_Input/tract_lengths.txt")
     except: pass
     try: os.remove("./C_Input/ROIts_retrievedHRF.txt")
     except: pass
-
-    if subject_id < 10: path = "./Data/" + group_id + "0" + str(subject_id) + "/"
-    else: path = "./Data/" + group_id + str(subject_id) + "/"
+    path = get_path(group_id, subject_id, "T1")
     np.savetxt('./C_Input/weights.txt', np.loadtxt(path + "weights.txt"), delimiter=' ')
     np.savetxt('./C_Input/tract_lengths.txt', np.loadtxt(path + "tract_lengths.txt"), delimiter=' ')
     hrf_len, TR = getHRF(group_id, subject_id)
@@ -79,6 +82,7 @@ def make_input(group_id, subject_id):
         temp = line.split()
         break
     f.close()
+    # making relavant changes to the parameters file used for simulation
     temp[7] = str(int(TR * 1000 * 200))
     temp[8] = str(hrf_len)
     temp[9] = str(int(TR * 1000))
@@ -89,9 +93,9 @@ def make_input(group_id, subject_id):
     f.close()
 
 def getCorrelation(group_id, subject_id):
+    # obtains the correlation between empirical functional connectivity and simulated functional connectivity
     input_path_sim = "fMRI.txt"
-    if subject_id < 10: input_path_em = "./Data/" + group_id + "0" + str(subject_id) + "/FC.mat"
-    else: input_path_em = "./Data/" + group_id + str(subject_id) + "/FC.mat"
+    input_path_em = get_path(group_id, subject_id, "T1") + "FC.mat"
     em_mat = scipy.io.loadmat(input_path_em)
     em_fc_matrix = em_mat["FC_cc_DK68"]
     sampling_interval = em_mat["TR"][0][0]
@@ -106,6 +110,7 @@ def getCorrelation(group_id, subject_id):
     return pearson_corr
 
 def alterGlobalCoupling(G):
+    # alters the global coupling value for each iteration of parameter space exploration
     f = open("./C_Input/param_set.txt", "r")
     for line in f:
         temp = line.split()
@@ -118,18 +123,13 @@ def alterGlobalCoupling(G):
         f.write(" ") 
     f.close()
 
-
-# Driver function 
 if __name__== "__main__":
-
+    # Driver function 
     Subjects = {}
     Subjects["CON"] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
     Subjects["PAT"] = [1, 2, 3, 5, 6, 7, 8, 10, 11, 13, 14, 15, 16, 17, 19, 20, 22, 23, 24, 25, 26, 27, 28, 29, 31]
-
     tests = ["T1", "T2"]
-    
     g = [0.01, 0.3, 0.59, 0.88, 1.17, 1.46, 1.75, 2.04, 2.33, 2.62, 2.91]
-
     for group_id in Subjects.keys():
         for subject_id in Subjects[group_id]:
             J_i = np.asarray([[0 for i in range(68)] for j in range(len(g))])
@@ -142,6 +142,7 @@ if __name__== "__main__":
                 PCorr[i] = getCorrelation(group_id, subject_id)
                 print("Global Coupling: ", g[i], " and Correlation: ", PCorr[i])
                 (J_i)[i] = np.loadtxt("J_i.txt")
+            os.mkdir(get_path(group_id, subject_id, tests[0]) + "/Output")
             np.savetxt(get_path(group_id, subject_id, tests[0]) + "/Output/J_i.txt", (J_i).T, delimiter = " ")
             np.savetxt(get_path(group_id, subject_id, tests[0]) + "/Output/PCorr.txt", np.asarray(PCorr), delimiter = " ")
     os.remove("fMRI.txt")
