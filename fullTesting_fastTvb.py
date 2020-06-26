@@ -1,4 +1,3 @@
-# importing libraries
 import os
 import scipy
 import nitime 
@@ -18,52 +17,51 @@ from nitime.analysis import CorrelationAnalyzer, CoherenceAnalyzer
 warnings.filterwarnings("ignore")
 
 def executeC(): 
-    # executing the fast_tvb code ("main.c")
+    # store the return code of the c program(return 0) 
+    # and display the output 
     s = subprocess.check_call("gcc main.c -lpthread -lm -lgsl -lgslcblas -o tvbii; ./tvbii param_set weights tract_lengths ROIts_retrievedHRF 1", shell = True) 
 
 def get_path(group_name, subject_num, test_num):
-    # gets the pathname for the group-name (CON or PAT), subject-num and test-num (T1 or T2) of the subject
-    if subject_num < 9: return "./Subjects/" + group_name + "0" + str(subject_num) + test_num
-    else: return "./Subjects/" + group_name + str(subject_num) + test_num
+    if subject_num < 9: return "./Data/" + group_name + "0" + str(subject_num) + test_num
+    else: return "./Data/" + group_name + str(subject_num) + test_num
 
-def getHRF(subject_id, TR):
-    # retrieving the Resting-State Hemodynamic Response Function from the ROIts.txt file 
-
-    # parameters required for the retrieving the HRF
+def getHRF(group_id, subject_id):
+    if subject_id < 10: path = "./Data/" + group_id + "0" + str(subject_id) + "/"
+    else: path = "./Data/" + group_id + str(subject_id) + "/"
+    mat = scipy.io.loadmat(path + "FC.mat")
     para = {}
-    para['estimation'] = 'canon2dd'     # estimation rule: here, we have fixed it to canonical 2dd which uses canonical HRF with time and dispersion derivatives
-    para['passband'] = [0.01, 0.08]     # range of the band-pass filter applied to the input BOLD response
-    para['TR'] = TR                     # BOLD repetition time (in seconds)
-    para['T'] = 3                       # magnification factor of temporal grid with respect to TR. i.e. para.T=1 for no upsampling, para.T=3 for 3x finer grid
-    para['T0'] = 1                      # position of the reference slice in bins, on the grid defined by para.T. For example, if the reference slice is the middle one, then para.T0=fix(para.T/2)
-    para['TD_DD'] = 2                   # denotes that we use both time and dispersion derivatives with the canon2dd rule
-    para['AR_lag'] = 1                  # noise autocorrelation
-    para['thr'] = 1                     # (mean+) para.thr*standard deviation threshold to detect event
-    para['len'] = 24                    # length of the Hemodynamic Response Function (in seconds)
-    para['min_onset_search'] = 4        # minimum delay allowed between event and HRF onset (in seconds)
-    para['max_onset_search'] = 8        # maximum delay allowed between event and HRF onset (in seconds)
-    para['dt'] = para['TR'] / para['T'] # fine scale time resolution
+    para['estimation'] = 'canon2dd'
+    para['passband'] = [0.01, 0.08]
+    para['TR'] = mat["TR"][0][0]
+    para['T'] = 3
+    para['T0'] = 1
+    para['TD_DD'] = 2
+    para['AR_lag'] = 1
+    para['thr'] = 1
+    para['len'] = 24
+    para['min_onset_search'] = 4
+    para['max_onset_search'] = 8
+    para['dt'] = para['TR'] / para['T']
     para['lag'] = np.arange(np.fix(para['min_onset_search'] / para['dt']),
                                 np.fix(para['max_onset_search'] / para['dt']) + 1,
                                 dtype='int')
-    bold_sig = np.loadtxt("./Subjects/" + str(subject_id) + "/ROIts.txt")
-    bold_sig = stats.zscore(bold_sig, ddof=1) # normalizing the input BOLD time-series
-    bold_sig = np.nan_to_num(bold_sig)  # replace nan with 0 and inf with large finite numbers
+    if subject_id < 10: bold_sig = mat[group_id + "0" + str(subject_id) + "T1_ROIts_DK68"]
+    else: bold_sig = mat[group_id + str(subject_id) + "T1_ROIts_DK68"]
+    bold_sig = stats.zscore(bold_sig, ddof=1)
+    bold_sig = np.nan_to_num(bold_sig) # replace nan with 0 and inf with large finite numbers
     bold_sig = processing. \
             rest_filter. \
-            rest_IdealFilter(bold_sig, para['TR'], para['passband']) # applying the bandpass filter
-    temporal_mask = [] # for masking time-slices (empty temporal mask corresponds to all time-slices being included)
+            rest_IdealFilter(bold_sig, para['TR'], para['passband'])
+    temporal_mask = []
     beta_hrf, bf, event_bold = \
                 canon.canon_hrf2dd.wgr_rshrf_estimation_canonhrf2dd_par2(
                     bold_sig, para, temporal_mask, 1
                 )
-    hrfa = np.dot(bf, beta_hrf[np.arange(0, bf.shape[1]), :]) # retrieved HRF
+    hrfa = np.dot(bf, beta_hrf[np.arange(0, bf.shape[1]), :])
     np.savetxt('./C_Input/ROIts_retrievedHRF.txt', hrfa.T, delimiter=' ')
-    return hrfa.shape[0]
+    return hrfa.shape[0], para['TR']
 
-def make_input(subject_id, TR):
-    # book-keeping for file arrangement, parameter values, etc, for each subject
-
+def make_input(group_id, subject_id):
     try : os.remove("./C_Input/weights.txt")
     except : pass
     try: os.remove("./C_Input/tract_lengths.txt")
@@ -71,18 +69,17 @@ def make_input(subject_id, TR):
     try: os.remove("./C_Input/ROIts_retrievedHRF.txt")
     except: pass
 
-    path = "./Subjects/" + str(subject_id) + "/"
+    if subject_id < 10: path = "./Data/" + group_id + "0" + str(subject_id) + "/"
+    else: path = "./Data/" + group_id + str(subject_id) + "/"
     np.savetxt('./C_Input/weights.txt', np.loadtxt(path + "weights.txt"), delimiter=' ')
     np.savetxt('./C_Input/tract_lengths.txt', np.loadtxt(path + "tract_lengths.txt"), delimiter=' ')
-    hrf_len = getHRF(subject_id, TR)
+    hrf_len, TR = getHRF(group_id, subject_id)
     f = open("./C_Input/param_set.txt", "r")
     for line in f:
         temp = line.split()
         break
     f.close()
-
-    # setting the appropriate parameters for BOLD simulations
-    temp[7] = str(int(TR * 1000 * 200)) 
+    temp[7] = str(int(TR * 1000 * 200))
     temp[8] = str(hrf_len)
     temp[9] = str(int(TR * 1000))
     f = open("./C_Input/param_set.txt", "w") 
@@ -91,27 +88,24 @@ def make_input(subject_id, TR):
         f.write(" ") 
     f.close()
 
-def getCorrelation(subject_id):
-    # obtains the correlation between the simulated Functional Connectivity to the empirical Functional Connectivity
-
+def getCorrelation(group_id, subject_id):
     input_path_sim = "fMRI.txt"
-    input_path_em = "./Subjects/" + str(subject_id) + "/FC.txt"
-    # getting the empirical functional connectivity
-    em_fc_matrix = np.loadtxt(input_path_em)
+    if subject_id < 10: input_path_em = "./Data/" + group_id + "0" + str(subject_id) + "/FC.mat"
+    else: input_path_em = "./Data/" + group_id + str(subject_id) + "/FC.mat"
+    em_mat = scipy.io.loadmat(input_path_em)
+    em_fc_matrix = em_mat["FC_cc_DK68"]
+    sampling_interval = em_mat["TR"][0][0]
     uidx = np.triu_indices(68, 1)
     em_fc_z = np.arctanh(em_fc_matrix)
     em_fc = em_fc_z[uidx]
-    # getting the simulated functional connectivity
     tsr = np.loadtxt(input_path_sim)
-    T = TimeSeries(tsr, sampling_interval=2.1)
+    T = TimeSeries(tsr, sampling_interval=sampling_interval)
     C = CorrelationAnalyzer(T)
     sim_fc = np.arctanh(C.corrcoef)[uidx]
-    # getting the correlation value (Pearson's R)
     pearson_corr, _ = stat.pearsonr(sim_fc, em_fc)
     return pearson_corr
 
 def alterGlobalCoupling(G):
-    # alters the global coupling parameter for each iteration through parameter space exploration
     f = open("./C_Input/param_set.txt", "r")
     for line in f:
         temp = line.split()
@@ -124,37 +118,33 @@ def alterGlobalCoupling(G):
         f.write(" ") 
     f.close()
 
-if __name__== "__main__": #
-    # Driver function 
 
-    # two groups of subjects: CON - Control Group and PAT - Patients
-    groups = ["CON", "PAT"] 
-    # test number: T1 - First Test and T2 - Second Test
+# Driver function 
+if __name__== "__main__":
+
+    Subjects = {}
+    Subjects["CON"] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+    Subjects["PAT"] = [1, 2, 3, 5, 6, 7, 8, 10, 11, 13, 14, 15, 16, 17, 19, 20, 22, 23, 24, 25, 26, 27, 28, 29, 31]
+
     tests = ["T1", "T2"]
-    # Subject IDs - as of now we have only dealt with the Control Group Subjects
-    ID_list = {"CON":[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}
-    # BOLD Repetition Time corresponding to each subject
-    TR_list = {"CON":[2.1, 2.1, 2.1, 2.1, 2.4, 2.4, 2.4, 2.4, 2.4, 2.4, 2.4]}
-    # values over which the parameter space exploration is performed (parameter: Global Coupling)
+    
     g = [0.01, 0.3, 0.59, 0.88, 1.17, 1.46, 1.75, 2.04, 2.33, 2.62, 2.91]
-    # Main Loop
-    for j in range(len(ID_list[groups[0]])):
-        # to store the Feedback Inhibhition Parameter values for each subject (num-of-brain-regions x iterations-in-parameter-space-exploration)
-        J_i = np.asarray([[0 for i in range(68)] for j in range(len(g))])
-        # to store the Correlation value of the simulated functional connectivity and empirical functional connectivity (for each value of global coupling parameter)
-        PCorr = [0 for i in range(len(g))]
-        make_input(ID_list[groups[0]][j], TR_list[groups[0]][j])
-        # Iterating over different values of global coupling parameter
-        for i in range(len(g)):
-            print("Analysis of Subject: ", ID_list[groups[0]][j])
-            alterGlobalCoupling(g[i])
-            executeC()
-            PCorr[i] = getCorrelation(ID_list[groups[0]][j])
-            (J_i).T[i] = np.loadtxt("J_i.txt")
-            print("Global Coupling: ", g[i], " and Correlation: ", PCorr[i])
-        np.savetxt(get_path(groups[0], ID_list[groups[0]][j], tests[0]) + "/Output/J_i.txt", (J_i).T, delimiter = " ")
-        np.savetxt(get_path(groups[0], ID_list[groups[0]][j], tests[0]) + "/Output/PCorr.txt", np.asarray(PCorr), delimiter = " ")
+
+    for group_id in Subjects.keys():
+        for subject_id in Subjects[group_id]:
+            J_i = np.asarray([[0 for i in range(68)] for j in range(len(g))])
+            PCorr = [0 for i in range(len(g))]
+            make_input(group_id, subject_id)
+            for i in range(len(g)):
+                print("Analysis of Subject: ", group_id + " " + str(subject_id))
+                alterGlobalCoupling(g[i])
+                executeC()
+                PCorr[i] = getCorrelation(group_id, subject_id)
+                print("Global Coupling: ", g[i], " and Correlation: ", PCorr[i])
+                (J_i)[i] = np.loadtxt("J_i.txt")
+            np.savetxt(get_path(group_id, subject_id, tests[0]) + "/Output/J_i.txt", (J_i).T, delimiter = " ")
+            np.savetxt(get_path(group_id, subject_id, tests[0]) + "/Output/PCorr.txt", np.asarray(PCorr), delimiter = " ")
     os.remove("fMRI.txt")
     os.remove("J_i.txt")
     os.remove("tvbii")
-    print("Analysis for all the subjects has concluded! Goodbye!")
+
