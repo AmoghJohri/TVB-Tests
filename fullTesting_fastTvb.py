@@ -24,8 +24,8 @@ def executeC():
 
 def get_path(group_name, subject_num, test_num):
     # gets the path for the directory corresponding to each combination of group, subject and test
-    if subject_num < 9: return "./Data/" + group_name + "0" + str(subject_num) + test_num
-    else: return "./Data/" + group_name + str(subject_num) + test_num
+    if subject_num < 9: return "./Data/" + group_name + "0" + str(subject_num) + "/"
+    else: return "./Data/" + group_name + str(subject_num) + "/"
 
 def getHRF(group_id, subject_id):
     # retrieves the HRF from the empirical fMRI time-series

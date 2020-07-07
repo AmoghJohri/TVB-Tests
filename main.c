@@ -872,7 +872,7 @@ int main(int argc, char* argv[])
     /* Read parameters from input file. Input file is a simple text file that contains one line with parameters and white spaces in between. */
     FILE *file;
     char param_file[300];memset(param_file, 0, 300*sizeof(char));
-    snprintf(param_file, sizeof(param_file), "./Input/%s.txt",argv[1]);
+    snprintf(param_file, sizeof(param_file), "./C_Input/%s.txt",argv[1]);
     file=fopen(param_file, "r");
     if (file==NULL){
         printf( "\nERROR: Could not open file %s. Terminating... \n\n", param_file);
@@ -953,13 +953,13 @@ int main(int argc, char* argv[])
     struct SC_inpregS   *SC_inpreg;
 
     char cap_file[300];memset(cap_file, 0, 300*sizeof(char));
-    strcat(strcat(strcat(cap_file,"./Input/"), argv[2]),".txt");
+    strcat(strcat(strcat(cap_file,"./C_Input/"), argv[2]),".txt");
 
     char dist_file[300];memset(dist_file, 0, 300*sizeof(char));
-    strcat(strcat(strcat(dist_file,"./Input/"), argv[3]),".txt");
+    strcat(strcat(strcat(dist_file,"./C_Input/"), argv[3]),".txt");
 
     char rsHRF_file[300]; memset(rsHRF_file, 0, sizeof(rsHRF_file));
-    strcat(strcat(strcat(rsHRF_file,"./Input/"), argv[4]),".txt");
+    strcat(strcat(strcat(rsHRF_file,"./C_Input/"), argv[4]),".txt");
     
     int         maxdelay = importGlobalConnectivity(cap_file, dist_file, rsHRF_file, nodes, global_trans_v, HRF_samples, G_J_NMDA, model_dt, dt, &region_activity, &reg_globinp_p, &n_conn_table, &SC_cap, &SC_rowsums, &SC_inpreg, &rsHRF);
     
