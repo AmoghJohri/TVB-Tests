@@ -165,7 +165,8 @@ void *run_simulation(void *arg)
 {
 
     /* Local function parameters (no concurrency) */
-    int                                  i, j, i_node_vec, i_node_vec_local, k, int_i, ts;
+    int                                  i, j, i_node_vec, i_node_vec_local, k, int_i;
+    long                                 ts;
     float                                tmpglobinput, tmpglobinput_FFI;
     __m128                               _tmp_H_E, _tmp_H_I, _tmp_I_I, _tmp_I_E;
     float   tmp_exp_E[4]                __attribute__((aligned(16)));
@@ -292,11 +293,13 @@ void *run_simulation(void *arg)
     __m128          *_J_i_local         = (__m128*)J_i_local;
     
     // model parameters
-    float mean_mean_FR        = 0.0;
-    int   FIC_time_steps      = divRoundClosest(FIC_time/model_dt, 1);                                                 // Number of time steps for FIC cycle   
-    int   time_steps          = FIC_time_steps + (divRoundClosest(total_duration/model_dt, 1)) + stock_steps;          // Total time-steps for the simulation loop
-    int   BOLD_TR_steps       = divRoundClosest(BOLD_TR/model_dt, 1);                                                  // Number of steps per BOLD Repetition Time
-    float *BOLD               = (float *)_mm_malloc(nodes_mt * BOLD_TS_len * sizeof(float),16);                        // Resulting BOLD output
+    float mean_mean_FR              = 0.0;
+    int   FIC_time_steps            = divRoundClosest(FIC_time/model_dt, 1);                                                 // Number of time steps for FIC cycle   
+    long  FIC_time_steps_dynamic    = FIC_time_steps;                                                                        // For altering the duration of FIC total time
+    int   tag_FIC                   = 0;                                                                                     // To dynamically ensure the range for FIC
+    long  time_steps                = (divRoundClosest(total_duration/model_dt, 1)) + stock_steps;                           // Total time-steps for the simulation loop
+    int   BOLD_TR_steps             = divRoundClosest(BOLD_TR/model_dt, 1);                                                  // Number of steps per BOLD Repetition Time
+    float *BOLD                     = (float *)_mm_malloc(nodes_mt * BOLD_TS_len * sizeof(float),16);                        // Resulting BOLD output
 
     if(BOLD == NULL)
     {
@@ -370,12 +373,12 @@ void *run_simulation(void *arg)
 
     /* SIMULATION LOOP */
     int ts_bold_i = 0; // current length of the BOLD Simulation
-    for (ts = 0; ts < time_steps; ts++) 
+    for (ts = 0; ts < time_steps  + FIC_time_steps_dynamic; ts++) 
     {
         
         if (t_id == 0)
         {
-            printf("%.1f %% \r", ((float)ts / (float)time_steps) * 100.0f );
+            printf("%.1f %% \r", ((float)ts / ((float)time_steps + FIC_time_steps_dynamic)) * 100.0f );
         }
         // integration iterations per temporal averaging duration -> interim_istep
         for (int_i = 0; int_i < interim_istep; int_i++) 
@@ -389,7 +392,7 @@ void *run_simulation(void *arg)
                 tmpglobinput     = 0;
                 tmpglobinput_FFI = 0;
                 for (k=0; k<n_conn_table[j]; k++) {
-                    tmpglobinput     += *reg_globinp_p[j+ring_buf_pos].Xi_elems[k] * SC_cap[j].cap[k];
+                    tmpglobinput     += *reg_globinp_p[j+ring_buf_pos].Xi_elems[k] * (SC_cap[j].cap[k]);
                 }
                 
                 global_input[i_node_vec_local]     = tmpglobinput;                
@@ -466,7 +469,7 @@ void *run_simulation(void *arg)
         }
 
         /* re-calculating every 10 seconds till FIC_time */
-        if (ts >= divRoundClosest(10000/model_dt, 1) && ts <= (FIC_time_steps) && ts % divRoundClosest(10000/model_dt, 1) == 0) 
+        if (ts >= divRoundClosest(10000/model_dt, 1) && ts <= (FIC_time_steps_dynamic) && ts % divRoundClosest(10000/model_dt, 1) == 0 && tag_FIC < 3) 
         {     
             /*  Compute mean firing rates */
             mean_mean_FR = 0;
@@ -492,6 +495,21 @@ void *run_simulation(void *arg)
             float std_FR = sqrt(var_FR);
             printf("time (s): %d\t\tmean+/-std firing rate exc. pops.: %.2f +/- %.2f\n", divRoundClosest(ts/(1000*model_dt), 1), mean_mean_FR, std_FR);
 
+            if(mean_mean_FR > 2.65 && mean_mean_FR < 3.55 && std_FR < 0.26)
+            {
+                tag_FIC ++;
+                if(tag_FIC == 3)
+                {
+                    FIC_time_steps_dynamic = ts;
+                }
+            }
+            else
+            {
+                FIC_time_steps_dynamic += divRoundClosest(10000/model_dt, 1);
+                tag_FIC = 0;
+            }
+
+            
             /*
              #################################################
              Inhibitory synaptic plasticity from Vogels et al. Science 2011
@@ -516,22 +534,22 @@ void *run_simulation(void *arg)
             }
         }
         
-        /*Saving the Simulated Activity after the initial FIC_time_steps */
-        if(ts >= FIC_time_steps)
+        /*Saving the Simulated Activity after the initial FIC_time_steps_dynamic */
+        if(ts >= FIC_time_steps_dynamic)
         {
             for (j = 0; j < nodes_mt; j++) 
             {
-                SIMULATED_signal[j][(ts-FIC_time_steps)%stock_steps] = S_i_E[j];   
+                SIMULATED_signal[j][(ts-FIC_time_steps_dynamic)%stock_steps] = S_i_E[j];   
             } 
         }
 
         /* after the target_firing rate has been corrected and SIMULATED_signal has been calculated for initial stock_steps, 
         we convolve the neural states with the HRF (at each time-step falling on BOLD_TR_steps) to begin obtaining the BOLD response*/
-        if(ts >= (FIC_time_steps + stock_steps) && ts >= BOLD_TR_steps && ts % BOLD_TR_steps == 0)
+        if(ts >= (FIC_time_steps_dynamic + stock_steps) && ts >= BOLD_TR_steps && ts % BOLD_TR_steps == 0)
         {
             for (j = 0; j < (end_nodes_mt_glob - start_nodes_mt); j++)
             {  
-                BOLD[ts_bold_i +  j * BOLD_TS_len] = shifted_reversed_dot_product(SIMULATED_signal[j], HRF_signal[j], stock_steps, ts - FIC_time_steps);
+                BOLD[ts_bold_i +  j * BOLD_TS_len] = shifted_reversed_dot_product(SIMULATED_signal[j], HRF_signal[j], stock_steps, ts - FIC_time_steps_dynamic);
             }
             ts_bold_i++;
         }

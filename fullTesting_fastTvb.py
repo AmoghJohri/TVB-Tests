@@ -129,7 +129,8 @@ if __name__== "__main__":
     Subjects["CON"] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
     Subjects["PAT"] = [1, 2, 3, 5, 6, 7, 8, 10, 11, 13, 14, 15, 16, 17, 19, 20, 22, 23, 24, 25, 26, 27, 28, 29, 31]
     tests = ["T1", "T2"]
-    g = [0.01, 0.3, 0.59, 0.88, 1.17, 1.46, 1.75, 2.04, 2.33, 2.62, 2.91]
+    g = [(i/10)+0.01 for i in range(0,22,2)]
+    g = sorted(g, reverse=True)
     for group_id in Subjects.keys():
         for subject_id in Subjects[group_id]:
             J_i = np.asarray([[0 for i in range(68)] for j in range(len(g))])
