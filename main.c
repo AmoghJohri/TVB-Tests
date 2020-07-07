@@ -373,6 +373,7 @@ void *run_simulation(void *arg)
 
     /* SIMULATION LOOP */
     int ts_bold_i = 0; // current length of the BOLD Simulation
+    FIC_time_steps *= 5;
     for (ts = 0; ts < time_steps  + FIC_time_steps_dynamic; ts++) 
     {
         
@@ -495,18 +496,22 @@ void *run_simulation(void *arg)
             float std_FR = sqrt(var_FR);
             printf("time (s): %d\t\tmean+/-std firing rate exc. pops.: %.2f +/- %.2f\n", divRoundClosest(ts/(1000*model_dt), 1), mean_mean_FR, std_FR);
 
-            if(mean_mean_FR > 2.65 && mean_mean_FR < 3.55 && std_FR < 0.26)
+            if(mean_mean_FR - std_FR > 2.65 && mean_mean_FR + std_FR < 3.55)
             {
                 tag_FIC ++;
                 if(tag_FIC == 3)
                 {
                     FIC_time_steps_dynamic = ts;
+                    continue;
                 }
             }
             else
             {
                 FIC_time_steps_dynamic += divRoundClosest(10000/model_dt, 1);
-                tag_FIC = 0;
+                if(ts >= FIC_time_steps)
+                    tag_FIC = 2;
+                else
+                    tag_FIC = 0;
             }
 
             
