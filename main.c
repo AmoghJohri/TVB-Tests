@@ -496,10 +496,11 @@ void *run_simulation(void *arg)
             float std_FR = sqrt(var_FR);
             printf("time (s): %d\t\tmean+/-std firing rate exc. pops.: %.2f +/- %.2f\n", divRoundClosest(ts/(1000*model_dt), 1), mean_mean_FR, std_FR);
 
+            /* If the mean firing rate and the standard deivation is within a desirable range */
             if(mean_mean_FR - std_FR > 2.65 && mean_mean_FR + std_FR < 3.55)
             {
                 tag_FIC ++;
-                if(tag_FIC == 3)
+                if(tag_FIC == 3) // ensuring the desirable range is maintained over 3 continuos runs
                 {
                     FIC_time_steps_dynamic = ts;
                     continue;
