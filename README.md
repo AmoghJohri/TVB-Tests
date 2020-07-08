@@ -45,7 +45,7 @@ C_Input
 └─> weights.txt
 
 Data
-│   CONXXTX (Control/Patients + number + T1/T2)
+│   CONXX (Control/Patients + number)
 |   |   FC.mat
 │   │   tract_lengths.txt
 │   │   weights.txt
