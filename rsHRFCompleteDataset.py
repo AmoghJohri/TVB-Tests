@@ -30,6 +30,8 @@ def getHRF(group_id, subject_id):
                                 dtype='int')
     if subject_id < 10: bold_sig = mat[group_id + "0" + str(subject_id) + "T1_ROIts_DK68"]
     else: bold_sig = mat[group_id + str(subject_id) + "T1_ROIts_DK68"]
+    bold_sig = scipy.stats.zscore(bold_sig, ddof=1)
+    bold_sig = np.nan_to_num(bold_sig) # replace nan with 0 and inf with large finite numbers
     beta_hrf, event_bold, bf  = utils.hrf_estimation.compute_hrf(bold_sig, para, [], 1)
     if not (para['estimation'] == 'sFIR' or para['estimation'] == 'FIR'):
         hrfa = np.dot(bf, beta_hrf[np.arange(0, bf.shape[1]), :])
