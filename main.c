@@ -295,12 +295,18 @@ void *run_simulation(void *arg)
     // model parameters
     float mean_mean_FR              = 0.0;
     int   FIC_time_steps            = divRoundClosest(FIC_time/model_dt, 1);                                                 // Number of time steps for FIC cycle   
-    long  FIC_time_steps_dynamic    = FIC_time_steps;                                                                        // For altering the duration of FIC total time
-    int   tag_FIC                   = 0;                                                                                     // To dynamically ensure the range for FIC
     long  time_steps                = (divRoundClosest(total_duration/model_dt, 1)) + stock_steps;                           // Total time-steps for the simulation loop
     int   BOLD_TR_steps             = divRoundClosest(BOLD_TR/model_dt, 1);                                                  // Number of steps per BOLD Repetition Time
     float *BOLD                     = (float *)_mm_malloc(nodes_mt * BOLD_TS_len * sizeof(float),16);                        // Resulting BOLD output
-
+    // Parameters for FIC tuning
+    const float tuning_factor     = 0.005;            // parameter for FIC tuning
+    float adaptive_tuning_factor  = tuning_factor;    // parameter for FIC tuning
+    float previous_meanFR[nodes], Ji_save_bestFRdistance[nodes], meanFR_save_bestFRdistance[nodes];
+    float avg_previous_Ji_change, avg_previous_FR_change, current_best_FRdistance=9999999.0, current_best_FRmean = 0.0,       previous_mean_meanFR,previous_adaptive_tuning_factor = tuning_factor, current_best_FR_SD=0.0, maximum_tuning_factor=-1;
+    int is_improved = 0, is_fine_tuning=-1;
+    float variance_FR;
+    int FIC_iter;
+    const float meanFRfact        = 1.0 / divRoundClosest((10000*10)/model_dt, 1); // Factor for averaging firing rates over FIC simulation period
     if(BOLD == NULL)
     {
         printf( "ERROR: Running out of memory. Aborting... \n");
@@ -370,16 +376,14 @@ void *run_simulation(void *arg)
     /* Barrier: only start simulating when arrays were cleared */
     pthread_barrier_wait(&mybarrier1);
 
-
     /* SIMULATION LOOP */
     int ts_bold_i = 0; // current length of the BOLD Simulation
-    FIC_time_steps *= 5;
-    for (ts = 0; ts < time_steps  + FIC_time_steps_dynamic; ts++) 
+    for (ts = 0; ts < time_steps  + FIC_time_steps; ts++) 
     {
         
         if (t_id == 0)
         {
-            printf("%.1f %% \r", ((float)ts / ((float)time_steps + FIC_time_steps_dynamic)) * 100.0f );
+            printf("%.1f %% \r", ((float)ts / ((float)time_steps + FIC_time_steps)) * 100.0f );
         }
         // integration iterations per temporal averaging duration -> interim_istep
         for (int_i = 0; int_i < interim_istep; int_i++) 
@@ -470,92 +474,180 @@ void *run_simulation(void *arg)
         }
 
         /* re-calculating every 10 seconds till FIC_time */
-        if (ts >= divRoundClosest(10000/model_dt, 1) && ts <= (FIC_time_steps_dynamic) && ts % divRoundClosest(10000/model_dt, 1) == 0 && tag_FIC < 3) 
+        if (ts >= divRoundClosest(10000/model_dt, 1) && ts <= (FIC_time_steps) && ts % divRoundClosest(10000/model_dt, 1) == 0) 
         {     
-            /*  Compute mean firing rates */
-            mean_mean_FR = 0;
-            float mean_mean_FR_INH = 0;
-            for (j = 0; j < nodes; j++){
-                meanFR[j]     = meanFR[j] / i_meanfr;
-                meanFR_INH[j] = meanFR_INH[j] / i_meanfr;
-                mean_mean_FR += meanFR[j];
-                mean_mean_FR_INH += meanFR_INH[j];
-            }
-
-            mean_mean_FR /= nodes;
-            mean_mean_FR_INH /= nodes;
-
-            /* Compute variance */
-            float var_FR = 0.0f, tmpvar;
-            for (j = 0; j < nodes; j++){
-                tmpvar = meanFR[j] - mean_mean_FR;
-                var_FR += (tmpvar * tmpvar);
-            }
-
-            var_FR /= nodes;
-            float std_FR = sqrt(var_FR);
-            printf("time (s): %d\t\tmean+/-std firing rate exc. pops.: %.2f +/- %.2f\n", divRoundClosest(ts/(1000*model_dt), 1), mean_mean_FR, std_FR);
-
-            /* If the mean firing rate and the standard deivation is within a desirable range */
-            if(mean_mean_FR - std_FR > 2.65 && mean_mean_FR + std_FR < 3.55)
+            /*
+            Phase III: Evaluate mean FR and adapt J_i
+            */
+            float tmpFR=0.0;
+            mean_mean_FR = 0.0;
+            avg_previous_FR_change = 0.0;
+            for (j = 0; j < nodes; j++)
             {
-                tag_FIC ++;
-                if(tag_FIC == 3) // ensuring the desirable range is maintained over 3 continuos runs
+                tmpFR = meanFR[j]*meanFRfact;
+                meanFR[j] = tmpFR;
+                mean_mean_FR += meanFR[j];
+                avg_previous_FR_change += fabsf(tmpFR - previous_meanFR[j]);
+                previous_meanFR[j] = tmpFR;
+            }
+            avg_previous_FR_change /= nodes;
+            mean_mean_FR /= nodes;
+            variance_FR = 0.0;
+            for (j = 0; j < nodes; j++)
+            {
+                variance_FR += (meanFR[j] - mean_mean_FR)*(meanFR[j] - mean_mean_FR);
+            }
+            variance_FR /= (nodes - 1);
+            float std_FR = sqrt(variance_FR);
+            printf("time (s): %d\t\tmean+/-std firing rate exc. pops.: %.2f +/- %.2f\n", divRoundClosest(ts/(1000*model_dt), 1), mean_mean_FR, std_FR);
+        
+            if (fabsf(mean_mean_FR - target_FR) < current_best_FRdistance && maximum_tuning_factor < 0)
+            {
+                previous_adaptive_tuning_factor = adaptive_tuning_factor;
+            }
+            if (FIC_iter > 0 && is_improved == 0 && maximum_tuning_factor < 0) 
+            {
+                if (avg_previous_Ji_change != 0 && (previous_mean_meanFR - mean_mean_FR) != 0)
                 {
-                    FIC_time_steps_dynamic = ts;
-                    continue;
+                    adaptive_tuning_factor = fabsf(avg_previous_Ji_change / (previous_mean_meanFR - mean_mean_FR));
+                }
+                else 
+                {
+                    adaptive_tuning_factor = tuning_factor;
+                }
+            } 
+            else if (FIC_iter == 0 && mean_mean_FR <= 2.7)
+            {
+                for (j = 0; j < nodes; j++)
+                {
+                    J_i_local[j] = J_i_local[j]*0.5;
                 }
             }
+            
+            if ((fabsf(mean_mean_FR - target_FR) >= current_best_FRdistance || mean_mean_FR <= 2.7) && is_fine_tuning == -1)
+            {
+                if (mean_mean_FR <= 2.7 && current_best_FRmean > target_FR) 
+                {
+                    is_improved = 0;
+                    adaptive_tuning_factor = previous_adaptive_tuning_factor / 2;
+                    previous_adaptive_tuning_factor /= 2;
+                    maximum_tuning_factor = previous_adaptive_tuning_factor;
+                } 
+                else
+                {
+                    is_improved++;
+                }
+                
+                for (j = 0; j < nodes; j++)
+                {
+                    J_i_local[j] = Ji_save_bestFRdistance[j];
+                    meanFR[j] = meanFR_save_bestFRdistance[j];
+                    previous_meanFR[j] = meanFR_save_bestFRdistance[j];
+                }
+            } 
             else
             {
-                FIC_time_steps_dynamic += divRoundClosest(10000/model_dt, 1);
-                if(ts >= FIC_time_steps)
-                    tag_FIC = 2;
+                is_improved = 0;
+                if ((is_fine_tuning == 0 && current_best_FR_SD > sqrtf(variance_FR) && fabsf(mean_mean_FR - target_FR) < 0.3) || is_fine_tuning == -1)
+                {
+                    current_best_FRmean = mean_mean_FR;
+                    current_best_FRdistance = fabsf(mean_mean_FR - target_FR);
+                    current_best_FR_SD = sqrtf(variance_FR);
+                    for (j = 0; j < nodes; j++)
+                    {
+                        Ji_save_bestFRdistance[j] = J_i_local[j];
+                        meanFR_save_bestFRdistance[j] = meanFR[j];
+                        previous_meanFR[j] = meanFR[j];
+                    }
+                    previous_mean_meanFR = mean_mean_FR;
+                } 
                 else
-                    tag_FIC = 0;
+                {
+                    is_fine_tuning = -1;
+                    for (j = 0; j < nodes; j++)
+                    {
+                        J_i_local[j] = Ji_save_bestFRdistance[j];
+                        meanFR[j] = meanFR_save_bestFRdistance[j];
+                        previous_meanFR[j] = meanFR_save_bestFRdistance[j];
+                    }
+                    is_improved++;
+                }
+                
             }
-
             
-            /*
-             #################################################
-             Inhibitory synaptic plasticity from Vogels et al. Science 2011
-             Eq 1: dw = eta(pre × post – r0 × pre)
-             #################################################
-            */
-
-            float isp_eta = 0.001;
-            float isp_r0  = target_FR;
-            for (j = 0; j < nodes; j++){
-                float pre  = meanFR_INH[j];
-                float post = meanFR[j];
-                J_i_local[j] +=  isp_eta * (pre * post - isp_r0 * pre);
-                J_i_local[j] = J_i_local[j] > 0 ? J_i_local[j] : 0; // make sure that weight is always >=0
+            if (adaptive_tuning_factor > 3*previous_adaptive_tuning_factor)
+            {
+                adaptive_tuning_factor = previous_adaptive_tuning_factor*2;
+            } 
+            else if (adaptive_tuning_factor < previous_adaptive_tuning_factor/3)
+            {
+                adaptive_tuning_factor = previous_adaptive_tuning_factor/2;
             }
-
-            /* Reset arrays */
-            i_meanfr = 0;
-            for (j = 0; j < nodes; j++) {
-                meanFR[j]           = 0.0;
-                meanFR_INH[j]       = 0.0;
+            
+            avg_previous_Ji_change = 0.0;
+            float tmpJichange=0.0;
+            if (is_improved == 0 && current_best_FRdistance >= 0.3)
+            {
+                for (j = 0; j < nodes; j++)
+                {
+                    tmpJichange = (meanFR[j] - target_FR)*adaptive_tuning_factor;
+                    J_i_local[j] += tmpJichange;
+                    avg_previous_Ji_change += (tmpJichange);
+                }
+                avg_previous_Ji_change /= nodes;
+                is_fine_tuning = -1;
+            } 
+            else
+            {
+                if (current_best_FRdistance < 0.3)
+                {
+                    is_fine_tuning = 0;
+                    for (j = 0; j < nodes; j++)
+                    {
+                        if (fabsf(meanFR_save_bestFRdistance[j] - target_FR) > current_best_FR_SD*0.6)
+                        {
+                             J_i_local[j] += (meanFR_save_bestFRdistance[j] - target_FR)*adaptive_tuning_factor;
+                        }
+                    }   
+                } 
+                else
+                {
+                    is_fine_tuning = -1;
+                    if (current_best_FRmean < target_FR)
+                    {
+                        for (j = 0; j < nodes; j++)
+                        {
+                            if (meanFR_save_bestFRdistance[j] < (current_best_FRmean - current_best_FR_SD*0.6)) J_i_local[j] += (meanFR_save_bestFRdistance[j] - current_best_FRmean)*adaptive_tuning_factor;
+                        }
+                    } 
+                    else
+                    {
+                        for (j = 0; j < nodes; j++)
+                        {
+                            if (meanFR_save_bestFRdistance[j] > (current_best_FRmean + current_best_FR_SD*0.6)) J_i_local[j] += (meanFR_save_bestFRdistance[j] - current_best_FRmean)*adaptive_tuning_factor;
+                        }
+                    }
+                }
             }
+        FIC_iter++;
         }
         
-        /*Saving the Simulated Activity after the initial FIC_time_steps_dynamic */
-        if(ts >= FIC_time_steps_dynamic)
+        /*Saving the Simulated Activity after the initial FIC_time_steps */
+        if(ts >= FIC_time_steps)
         {
             for (j = 0; j < nodes_mt; j++) 
             {
-                SIMULATED_signal[j][(ts-FIC_time_steps_dynamic)%stock_steps] = S_i_E[j];   
+                SIMULATED_signal[j][(ts-FIC_time_steps)%stock_steps] = S_i_E[j];   
             } 
         }
 
         /* after the target_firing rate has been corrected and SIMULATED_signal has been calculated for initial stock_steps, 
         we convolve the neural states with the HRF (at each time-step falling on BOLD_TR_steps) to begin obtaining the BOLD response*/
-        if(ts >= (FIC_time_steps_dynamic + stock_steps) && ts >= BOLD_TR_steps && ts % BOLD_TR_steps == 0)
+        if(ts >= (FIC_time_steps + stock_steps) && ts >= BOLD_TR_steps && ts % BOLD_TR_steps == 0)
         {
             for (j = 0; j < (end_nodes_mt_glob - start_nodes_mt); j++)
             {  
-                BOLD[ts_bold_i +  j * BOLD_TS_len] = shifted_reversed_dot_product(SIMULATED_signal[j], HRF_signal[j], stock_steps, ts - FIC_time_steps_dynamic);
+                BOLD[ts_bold_i +  j * BOLD_TS_len] = shifted_reversed_dot_product(SIMULATED_signal[j], HRF_signal[j], stock_steps, ts - FIC_time_steps);
             }
             ts_bold_i++;
         }
@@ -596,7 +688,7 @@ void *run_simulation(void *arg)
         FILE *FCout = fopen("J_i.txt", "w+");
         for (j = 0; j < nodes; j++) 
         {
-            fprintf(FCout, "%.5f ",J_i[k]);
+            fprintf(FCout, "%.5f ",J_i[j]);
             fprintf(FCout, "\n");
         }
         fclose(FCout);
@@ -958,7 +1050,7 @@ int main(int argc, char* argv[])
     const float imintau_I        = -1.0 / tau_I;
     const float w_E__I_0         = w_E * I_0;
     const float w_I__I_0         = w_I * I_0;
-    const float one              = 1.0;
+    const float one              = 1.57;
     const float w_plus__J_NMDA   = w_plus * J_NMDA;
     const float G_J_NMDA         = G * J_NMDA;
 

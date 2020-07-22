@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 from scipy.sparse import lil_matrix
 from nitime.utils import percent_change
 from nitime.timeseries import TimeSeries
-from rsHRF import processing, canon, sFIR
+from rsHRF import processing, canon, sFIR, utils
 from nitime.analysis import CorrelationAnalyzer, CoherenceAnalyzer
 
 warnings.filterwarnings("ignore")
@@ -33,13 +33,13 @@ def getHRF(group_id, subject_id):
     mat = scipy.io.loadmat(path + "FC.mat")
     # parameters required for HRF retrieval
     para = {}
-    para['estimation'] = 'canon2dd'
+    para['estimation'] = 'gamma'
     para['passband'] = [0.01, 0.08]
     para['TR'] = mat["TR"][0][0]
     para['T'] = 3
     para['T0'] = 1
-    para['TD_DD'] = 2
     para['AR_lag'] = 1
+    para['order'] = 3
     para['thr'] = 1
     para['len'] = 24
     para['min_onset_search'] = 4
@@ -52,15 +52,11 @@ def getHRF(group_id, subject_id):
     else: bold_sig = mat[group_id + str(subject_id) + "T1_ROIts_DK68"]
     bold_sig = stats.zscore(bold_sig, ddof=1)
     bold_sig = np.nan_to_num(bold_sig) # replace nan with 0 and inf with large finite numbers
-    bold_sig = processing. \
-            rest_filter. \
-            rest_IdealFilter(bold_sig, para['TR'], para['passband'])
-    temporal_mask = []
-    beta_hrf, bf, event_bold = \
-                canon.canon_hrf2dd.wgr_rshrf_estimation_canonhrf2dd_par2(
-                    bold_sig, para, temporal_mask, 1
-                )
-    hrfa = np.dot(bf, beta_hrf[np.arange(0, bf.shape[1]), :])
+    beta_hrf, event_bold, bf  = utils.hrf_estimation.compute_hrf(bold_sig, para, [], 1)
+    if not (para['estimation'] == 'sFIR' or para['estimation'] == 'FIR'):
+        hrfa = np.dot(bf, beta_hrf[np.arange(0, bf.shape[1]), :])
+    else:
+        hrfa = beta_hrf
     np.savetxt('./C_Input/ROIts_retrievedHRF.txt', hrfa.T, delimiter=' ')
     # returns the length of the retrieved HRF and the BOLD Repetition Time
     return hrfa.shape[0], para['TR']
@@ -127,13 +123,13 @@ if __name__== "__main__":
     # Driver function 
     Subjects = {}
     Subjects["CON"] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
-    Subjects["PAT"] = [1, 2, 3, 5, 6, 7, 8, 10, 11, 13, 14, 15, 16, 17, 19, 20, 22, 23, 24, 25, 26, 27, 28, 29, 31]
+    Subjects["PAT"] = [1, 2, 3, 5, 6, 7, 8, 10, 11, 13, 14, 15, 16, 17, 19, 20, 22, 23, 24, 25]
     tests = ["T1", "T2"]
-    g = [(i/10)+0.01 for i in range(0,22,2)]
+    g = [(i/10)+0.01 for i in range(0,31,2)]
     g = sorted(g, reverse=True)
     for group_id in Subjects.keys():
         for subject_id in Subjects[group_id]:
-            J_i = np.asarray([[0 for i in range(68)] for j in range(len(g))])
+            J_i = np.asarray([[0.0 for i in range(68)] for j in range(len(g))])
             PCorr = [0 for i in range(len(g))]
             make_input(group_id, subject_id)
             for i in range(len(g)):
@@ -143,6 +139,7 @@ if __name__== "__main__":
                 PCorr[i] = getCorrelation(group_id, subject_id)
                 print("Global Coupling: ", g[i], " and Correlation: ", PCorr[i])
                 (J_i)[i] = np.loadtxt("J_i.txt")
+                print(J_i[i])
             os.mkdir(get_path(group_id, subject_id, tests[0]) + "/Output")
             np.savetxt(get_path(group_id, subject_id, tests[0]) + "/Output/J_i.txt", (J_i).T, delimiter = " ")
             np.savetxt(get_path(group_id, subject_id, tests[0]) + "/Output/PCorr.txt", np.asarray(PCorr), delimiter = " ")
