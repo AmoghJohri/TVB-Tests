@@ -45,7 +45,7 @@ C_Input
 └─> weights.txt
 
 Data
-│   CONXX (Control/Patients + number)
+│   YYYXX (YYY = CON(Control)/PAT(Patients) + XX=number)
 |   |   FC.mat
 │   │   tract_lengths.txt
 │   │   weights.txt
@@ -53,7 +53,7 @@ Data
 |   |   |   J_i.txt
 |   └─> └─> PCorr.txt
 │   
-└───CONXXTX
+└───YYYXX 
     │   ...
 ```
 
