@@ -21,7 +21,7 @@ For each participant, the following data is provided:
 3.b. **FC_cc_DK68**: Empirical functional connectivity matrix (between each pair of brain regions) <br>
 3.c. **TR**: BOLD Repetition Time
 
-### Workflow
+## Workflow
 
 **Legacy Method**
 
@@ -33,7 +33,21 @@ The [rsHRF-toolbox](https://github.com/BIDS-Apps/rsHRF) is used to retrieve the 
 
 The BOLD simulations are then obtained using the retrieved rsHRF (https://github.com/AmoghJohri/TVB-Tests/blob/master/main.c). Further steps are similar to the above method.
 
+## Reproducing the Experiment
+
+To reproduce the experiment do the following:
+1. For the 'legacy' workflow, run `fullTesting_legacy.py`. It uses the input files as mentioned above and the `tvbii_multicore.c` to generate fMRI simulations, obtain the functional connectivity matrix, get the pearsons' correlation coeffecient vs the empirical functional connectivity and store the result in the `./Data/YYYXX/Output/PCorr.txt` file. It does this for all the subjects (11 CON and 20 PAT), for the entire range of *G* values.
+2. For the 'rsHRF' method, rsHRF-toolbox (version 1.1.1) should be present ( `pip3 install rsHRF` ). Then, run `fullTesting_fastTvb.py`. The remaining parts are the same as above, except it also stores the values of *J_I* parameter, at the end of 180 seconds of Feedback Inhibhition Control. These values are stored for all the brain regions of every subject, for each value of *G*. This is stored in `./Data/YYYXX/Output/J_i.txt` file.
+**Note:** For all the runs, the values get stored in folders with the exact-same path. Hence, to run it in parallel, either conduct each run in separate directories, or make appropriate changes to file-names in the C and python code.
+
 ## Result
+Please find a more ellaborate analysis of results [here](https://github.com/AmoghJohri/TVB-Tests/blob/master/legacy_vs_rsHRF.ipynb).
+
+Here are a few plots describing the performance of the rsHRF method as compared to the legacy method. The rsHRF method gives a higher correlation for the empirical-simulated FC matrices, for a greater number of participants.
+
+![](./Images/img2.png)
+![](./Images/img3.png)
+
 
 
 ### Organization
@@ -90,7 +104,7 @@ Data
 * HRF_length = 25
 
 3. ### param_set.txt 
-The following parameters are in order with as provided in the param_set.txt file
+    The following parameters are in order with as provided in the param_set.txt file
 * nodes = 68
 * G = 0.01 to 3.01 (in intervals of 0.2)
 * J_NMDA = 0.150
@@ -103,7 +117,7 @@ The following parameters are in order with as provided in the param_set.txt file
 * rand_num)seed = 1403
 * HRF_samples = subject-dependent **#**
 
-### rsHRF-Toolbox Parameters
+4. ### rsHRF-Toolbox Parameters
 * estimation = {canon2dd, gamma, fourier}
 * passband = [0.01, 0.08]
 * TR = subject-dependent
