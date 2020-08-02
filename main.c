@@ -474,24 +474,24 @@ void *run_simulation(void *arg)
             /*  Compute mean firing rates */
             mean_mean_FR = 0;
             float mean_mean_FR_INH = 0;
-            for (j = 0; j < nodes; j++){
+            for (j = 0; j < nodes_mt; j++){
                 meanFR[j]     = meanFR[j] / i_meanfr;
                 meanFR_INH[j] = meanFR_INH[j] / i_meanfr;
                 mean_mean_FR += meanFR[j];
                 mean_mean_FR_INH += meanFR_INH[j];
             }
 
-            mean_mean_FR /= nodes;
-            mean_mean_FR_INH /= nodes;
+            mean_mean_FR /= nodes_mt;
+            mean_mean_FR_INH /= nodes_mt;
 
             /* Compute variance */
             float var_FR = 0.0f, tmpvar;
-            for (j = 0; j < nodes; j++){
+            for (j = 0; j < nodes_mt; j++){
                 tmpvar = meanFR[j] - mean_mean_FR;
                 var_FR += (tmpvar * tmpvar);
             }
 
-            var_FR /= nodes;
+            var_FR /= nodes_mt;
             float std_FR = sqrt(var_FR);
             printf("time (s): %d\t\tmean+/-std firing rate exc. pops.: %.2f +/- %.2f\n", divRoundClosest(ts/(1000), 1), mean_mean_FR, std_FR);
 
@@ -504,7 +504,7 @@ void *run_simulation(void *arg)
 
             float isp_eta = 0.001;
             float isp_r0  = target_FR;
-            for (j = 0; j < nodes; j++){
+            for (j = 0; j < nodes_mt; j++){
                 float pre  = meanFR_INH[j];
                 float post = meanFR[j];
                 J_i_local[j] +=  isp_eta * (pre * post - isp_r0 * pre);
