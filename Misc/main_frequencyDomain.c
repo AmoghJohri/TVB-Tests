@@ -1,7 +1,7 @@
 /* compile -> gcc main_frequencyDomain.c -lpthread -lm -lgsl -lgslcblas -o tvbii */
 /* execute -> ./tvbii <param_filename> <SC_weights_filename> <SC_tract_lengths_filename> <rsHRF_filename> <num_of_thread> */ 
 
-/* All the inputs should be stored in a directory named C_Input and all the input files should be .txt files 
+/* All the inputs should be stored in a directory named Input and all the input files should be .txt files 
     NOTE: Do NOT add '.txt' extension to the filenames, that is appended by the program
    The output gets stored in a fMRI.txt file formed in the directory of the execution-code */
 
