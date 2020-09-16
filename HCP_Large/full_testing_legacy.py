@@ -18,7 +18,7 @@ from   nitime.analysis   import CorrelationAnalyzer, CoherenceAnalyzer
 
 warnings.filterwarnings("ignore")
 
-path_ = "/home/redhood/Desktop/Work/GSoC/Post-GSoC/Dummy/HCP_Large/HCP_YA_BIDS/derivatives"
+path_ = "./HCP_YA_BIDS/derivatives"
 fmri = path_+"/fMRI_time_series/"
 functional_connectivity = path_+"/functional_connectivity/"
 structural_connectivity = path_+"/structural_connectivity/"
@@ -99,15 +99,17 @@ def main(runs, encoding, l, r):
     runs = runs
     encoding = encoding
     subjects = os.listdir(functional_connectivity)
-    subjects.remove(".DS_Store")
+    try: subjects.remove(".DS_Store")
+    except: pass
     subjects = sorted(subjects)
     subjects = subjects[l:r]
-    try: os.mkdir("Final_Output")
+    g = [(i/10)+0.01 for i in range(0,61,4)]
+    g = sorted(g, reverse=True)
+    try: os.mkdir("Final_Output_Legacy")
     except: pass
     for each in subjects:
         for e in encoding:
             for r in runs:
-                J_i = np.asarray([[0.0 for i in range(379)] for j in range(len(g))])
                 PCorr = [0. for i in range(len(g))]
                 make_input(r, e, each)
                 for i in range(len(g)):
@@ -119,13 +121,11 @@ def main(runs, encoding, l, r):
                     executeC()
                     PCorr[i] = getCorrelation(r, e, each)
                     print("Global Coupling: ", g[i], " and Correlation: ", PCorr[i])
-                    (J_i)[i] = np.loadtxt("J_i.txt")
-                if not os.path.isdir("./Final_Output/" + each):
-                    os.mkdir("./Final_Output/" + each)
-                if not os.path.isdir("./Final_Output/" + each + "/" + e + "_" + str(r)):
-                    os.mkdir(("./Final_Output/" + each + "/" + e + "_" + str(r)))
-                path = "./Final_Output/" + each + "/" + e + "_" + str(r)
-                np.savetxt(path + "/J_i.txt", (J_i).T, delimiter = " ")
+                if not os.path.isdir("./Final_Output_Legacy/" + each):
+                    os.mkdir("./Final_Output_Legacy/" + each)
+                if not os.path.isdir("./Final_Output_Legacy/" + each + "/" + e + "_" + str(r)):
+                    os.mkdir(("./Final_Output_Legacy/" + each + "/" + e + "_" + str(r)))
+                path = "./Final_Output_Legacy/" + each + "/" + e + "_" + str(r)
                 np.savetxt(path + "/PCorr.txt", np.asarray(PCorr), delimiter = " ")
     os.remove("fMRI.txt")
     os.remove("J_i.txt")

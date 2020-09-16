@@ -135,7 +135,8 @@ def main(runs, encoding, l, r):
     runs = runs
     encoding = encoding
     subjects = os.listdir(functional_connectivity)
-    subjects.remove(".DS_Store")
+    try: subjects.remove(".DS_Store")
+    except: pass
     subjects = sorted(subjects)
     subjects = subjects[l:r]
     g = [(i/10)+0.01 for i in range(0,61,4)]
