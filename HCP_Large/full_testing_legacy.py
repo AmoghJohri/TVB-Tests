@@ -18,15 +18,28 @@ from   nitime.analysis   import CorrelationAnalyzer, CoherenceAnalyzer
 
 warnings.filterwarnings("ignore")
 
-path_ = "./HCP_YA_BIDS/derivatives"
-fmri = path_+"/fMRI_time_series/"
-functional_connectivity = path_+"/functional_connectivity/"
-structural_connectivity = path_+"/structural_connectivity/"
+global path_ 
+global fmri
+global functional_connectivity
+global structural_connectivity
+fmri = ""
+functional_connectivity = ""
+structural_connectivity = ""
+path_ = ""
+def makePath(inp):
+    global path_
+    global fmri
+    global functional_connectivity
+    global structural_connectivity
+    path_ = inp + "/derivatives"
+    fmri = path_+"/fMRI_time_series/"
+    functional_connectivity = path_+"/functional_connectivity/"
+    structural_connectivity = path_+"/structural_connectivity/"
 
 def executeC(): 
     # store the return code of the c program(return 0) 
     # and display the output 
-    s = subprocess.check_call("gcc tvbii_multicore.c -lpthread -lm -lgsl -lgslcblas -o tvbii; ./tvbii param_set.txt sub 1", shell = True) 
+    s = subprocess.check_call("cc tvbii_multicore.c -lpthread -lm -lgsl -lgslcblas -o tvbii; ./tvbii param_set.txt sub 1", shell = True) 
 
 def get_fMRI(run, encoding, sub):
     return np.loadtxt(fmri + sub + "/" + sub + "_task-rfMRI_REST" + str(run) + "_" + encoding + "_space-MMP1_desc-preproc_hcp_fMRI.tsv")
@@ -43,13 +56,13 @@ def get_distances(sub):
 
 def make_input(run, encoding, subject_id):
     # does all the book-keeping with respect to arranging and channeling the input files
-    try : os.remove("./C_Input/sub_SC_weights.txt")
+    try : os.remove("/C_Input/sub_SC_weights.txt")
     except: pass
-    try: os.remove("./C_Input/sub_SC_distances.txt")
+    try: os.remove("/C_Input/sub_SC_distances.txt")
     except: pass
-    np.savetxt('./C_Input/sub_SC_weights.txt', (get_weights(subject_id))/np.max(get_weights(subject_id)), delimiter=' ')
-    np.savetxt('./C_Input/sub_SC_distances.txt', (get_distances(subject_id))/np.max(get_distances(subject_id)), delimiter=' ')
-    f = open("./C_Input/param_set.txt", "r")
+    np.savetxt('/C_Input/sub_SC_weights.txt', (get_weights(subject_id))/np.max(get_weights(subject_id)), delimiter=' ')
+    np.savetxt('/C_Input/sub_SC_distances.txt', (get_distances(subject_id))/np.max(get_distances(subject_id)), delimiter=' ')
+    f = open("/C_Input/param_set.txt", "r")
     for line in f:
         temp = line.split()
         break
@@ -57,7 +70,7 @@ def make_input(run, encoding, subject_id):
     # making relavant changes to the parameters file used for simulation
     temp[6] = str(int(0.72 * 1000 * 400))
     temp[7] = str(int(0.72 * 1000))
-    f = open("./C_Input/param_set.txt", "w") 
+    f = open("/C_Input/param_set.txt", "w") 
     for each in temp:
         f.write(each)
         f.write(" ") 
@@ -81,29 +94,29 @@ def getCorrelation(run, encoding, subject_id):
 
 def alterGlobalCoupling(G):
     # alters the global coupling value for each iteration of parameter space exploration
-    f = open("./C_Input/param_set.txt", "r")
+    f = open("/C_Input/param_set.txt", "r")
     for line in f:
         temp = line.split()
         break
     f.close()
     temp[1] = str(G) 
-    f = open("./C_Input/param_set.txt", "w") 
+    f = open("/C_Input/param_set.txt", "w") 
     for each in temp:
         f.write(each)
         f.write(" ") 
     f.close()
 
 
-def main(runs, encoding, l, r):
+def main(runs, encoding, l, r, input_, output, f, t, r_):
     # Driver function 
+    makePath(input_)
     runs = runs
     encoding = encoding
     subjects = os.listdir(functional_connectivity)
-    try: subjects.remove(".DS_Store")
-    except: pass
+    subjects.remove(".DS_Store")
     subjects = sorted(subjects)
     subjects = subjects[l:r]
-    g = [(i/10)+0.01 for i in range(0,61,4)]
+    g = [(i/10)+0.01 for i in range(f,t,r_)]
     g = sorted(g, reverse=True)
     try: os.mkdir("Final_Output_Legacy")
     except: pass
@@ -121,12 +134,14 @@ def main(runs, encoding, l, r):
                     executeC()
                     PCorr[i] = getCorrelation(r, e, each)
                     print("Global Coupling: ", g[i], " and Correlation: ", PCorr[i])
-                if not os.path.isdir("./Final_Output_Legacy/" + each):
-                    os.mkdir("./Final_Output_Legacy/" + each)
-                if not os.path.isdir("./Final_Output_Legacy/" + each + "/" + e + "_" + str(r)):
-                    os.mkdir(("./Final_Output_Legacy/" + each + "/" + e + "_" + str(r)))
-                path = "./Final_Output_Legacy/" + each + "/" + e + "_" + str(r)
+                if not os.path.isdir("/Final_Output_Legacy/" + each):
+                    os.mkdir("/Final_Output_Legacy/" + each)
+                if not os.path.isdir("/Final_Output_Legacy/" + each + "/" + e + "_" + str(r)):
+                    os.mkdir(("/Final_Output_Legacy/" + each + "/" + e + "_" + str(r)))
+                path = "/Final_Output_Legacy/" + each + "/" + e + "_" + str(r)
                 np.savetxt(path + "/PCorr.txt", np.asarray(PCorr), delimiter = " ")
-    os.remove("fMRI.txt")
-    os.remove("J_i.txt")
-    os.remove("tvbii")
+    try:
+        os.remove("fMRI.txt")
+        os.remove("tvbii")
+    except:
+        pass

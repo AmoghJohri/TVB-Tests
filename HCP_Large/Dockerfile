@@ -1,6 +1,14 @@
-FROM python:3
+FROM alpine:3.9
 ADD pipeline.py /
+ADD full_testing.py /
+ADD full_testing_legacy.py / 
+ADD main.c / 
+ADD tvbii_multicore.c /
+ADD C_Input /
+ADD Final_Output /
+ADD Final_Output_Legacy /
 RUN apk add --no-cache python3 && \
+	apk add build-base && \
     python3 -m ensurepip && \
     rm -r /usr/lib/python*/ensurepip && \
     pip3 install --upgrade pip setuptools && \
@@ -8,7 +16,7 @@ RUN apk add --no-cache python3 && \
     if [[ ! -e /usr/bin/python ]]; then ln -sf /usr/bin/python3 /usr/bin/python; fi && \
     rm -r /root/.cache
 
-RUN apk add --no-cache zlib libjpeg-turbo-dev libpng-dev freetype-dev lcms2-dev libwebp-dev harfbuzz-dev fribidi-dev tcl-dev tk-dev && \
+RUN apk add --no-cache zlib libjpeg-turbo-dev libpng-dev gsl gsl-dev freetype-dev lcms2-dev libwebp-dev harfbuzz-dev fribidi-dev tcl-dev tk-dev && \
 	apk add --no-cache libpng freetype libstdc++ openblas libxml2 libxslt && \
 	apk add --no-cache --virtual .build-deps \
 	    g++ gfortran file binutils \
@@ -19,7 +27,7 @@ RUN apk add --no-cache zlib libjpeg-turbo-dev libpng-dev freetype-dev lcms2-dev 
 	    musl-dev \
 	    libxml2-dev \
 	    libxslt-dev \
-		libressl-dev \
+		libressl-dev \ 
 		pkgconfig && \
 	ln -s /usr/include/locale.h /usr/include/xlocale.h \
 	&& pip3 install wheel \
@@ -29,7 +37,7 @@ RUN apk add --no-cache zlib libjpeg-turbo-dev libpng-dev freetype-dev lcms2-dev 
 	&& pip3 install numpy \
 	&& pip3 install scipy==1.3.3 \
 	&& pip3 install pandas \
-	&& pip3 install rsHRF \
+	&& pip3 install rsHRF==1.2.2 \
     && pip3 install nitime==0.8.1 \
 	&& rm -r /root/.cache \
 	&& find /usr/lib/python3.*/ -name 'tests' -exec rm -r '{}' + \
@@ -37,4 +45,4 @@ RUN apk add --no-cache zlib libjpeg-turbo-dev libpng-dev freetype-dev lcms2-dev 
 	&& rm /usr/include/xlocale.h \
 	&& apk del .build-deps
 
-CMD [ "python", "./pipeline.py" ]
+CMD [ "python", "./full_testing.py" ]

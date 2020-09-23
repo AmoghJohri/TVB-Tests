@@ -1,6 +1,7 @@
 # importing libraries
 import os
 import scipy
+import shutil
 import nitime 
 import warnings
 import subprocess
@@ -17,15 +18,28 @@ from   nitime.analysis   import CorrelationAnalyzer, CoherenceAnalyzer
 
 warnings.filterwarnings("ignore")
 
-path_ = "./HCP_YA_BIDS/derivatives"
-fmri = path_+"/fMRI_time_series/"
-functional_connectivity = path_+"/functional_connectivity/"
-structural_connectivity = path_+"/structural_connectivity/"
+global path_ 
+global fmri
+global functional_connectivity
+global structural_connectivity
+fmri = ""
+functional_connectivity = ""
+structural_connectivity = ""
+path_ = ""
+def makePath(inp):
+    global path_
+    global fmri
+    global functional_connectivity
+    global structural_connectivity
+    path_ = inp + "/derivatives"
+    fmri = path_+"/fMRI_time_series/"
+    functional_connectivity = path_+"/functional_connectivity/"
+    structural_connectivity = path_+"/structural_connectivity/"
 
 def executeC(): 
     # store the return code of the c program(return 0) 
     # and display the output 
-    s = subprocess.check_call("gcc main.c -lpthread -lm -lgsl -lgslcblas -o tvbii; ./tvbii param_set weights distances ROIts_retrievedHRF 1", shell = True) 
+    s = subprocess.check_call("cc main.c -lpthread -lm -lgsl -lgslcblas -o tvbii; ./tvbii param_set weights distances ROIts_retrievedHRF 1", shell = True) 
 
 def get_fMRI(run, encoding, sub):
     return np.loadtxt(fmri + sub + "/" + sub + "_task-rfMRI_REST" + str(run) + "_" + encoding + "_space-MMP1_desc-preproc_hcp_fMRI.tsv")
@@ -70,22 +84,22 @@ def getHRF(run, encoding, subject_id):
     bf = basis_functions.basis_functions.get_basis_function(bold_sig.shape, para)
     beta_hrf, event_bold = utils.hrf_estimation.compute_hrf(bold_sig, para, [], -1, bf)
     hrfa = np.dot(bf, beta_hrf[np.arange(0, bf.shape[1]), :])
-    np.savetxt('./C_Input/ROIts_retrievedHRF.txt', hrfa.T, delimiter=' ')
+    np.savetxt('/C_Input/ROIts_retrievedHRF.txt', hrfa.T, delimiter=' ')
     # returns the length of the retrieved HRF and the BOLD Repetition Time
     return hrfa.shape[0], para['TR']
 
 def make_input(run, encoding, subject_id):
     # does all the book-keeping with respect to arranging and channeling the input files
-    try : os.remove("./C_Input/weights.txt")
+    try : os.remove("/C_Input/weights.txt")
     except: pass
-    try: os.remove("./C_Input/distances.txt")
+    try: os.remove("/C_Input/distances.txt")
     except: pass
-    try: os.remove("./C_Input/ROIts_retrievedHRF.txt")
+    try: os.remove("/C_Input/ROIts_retrievedHRF.txt")
     except: pass
-    np.savetxt('./C_Input/weights.txt',(get_weights(subject_id))/np.max(get_weights(subject_id)), delimiter=' ')
-    np.savetxt('./C_Input/distances.txt', (get_distances(subject_id))/np.max(get_distances(subject_id)), delimiter=' ')
+    np.savetxt('/C_Input/weights.txt',(get_weights(subject_id))/np.max(get_weights(subject_id)), delimiter=' ')
+    np.savetxt('/C_Input/distances.txt', (get_distances(subject_id))/np.max(get_distances(subject_id)), delimiter=' ')
     hrf_len, TR = getHRF(run, encoding, subject_id)
-    f = open("./C_Input/param_set.txt", "r")
+    f = open("/C_Input/param_set.txt", "r")
     for line in f:
         temp = line.split()
         break
@@ -94,7 +108,7 @@ def make_input(run, encoding, subject_id):
     temp[6] = str(int(TR * 1000 * 400))
     temp[7] = str(int(TR * 1000))
     temp[10] = str(hrf_len)
-    f = open("./C_Input/param_set.txt", "w") 
+    f = open("/C_Input/param_set.txt", "w") 
     for each in temp:
         f.write(each)
         f.write(" ") 
@@ -118,28 +132,28 @@ def getCorrelation(run, encoding, subject_id):
 
 def alterGlobalCoupling(G):
     # alters the global coupling value for each iteration of parameter space exploration
-    f = open("./C_Input/param_set.txt", "r")
+    f = open("/C_Input/param_set.txt", "r")
     for line in f:
         temp = line.split()
         break
     f.close()
     temp[1] = str(G) 
-    f = open("./C_Input/param_set.txt", "w") 
+    f = open("/C_Input/param_set.txt", "w") 
     for each in temp:
         f.write(each)
         f.write(" ") 
     f.close()
 
-def main(runs, encoding, l, r):
+def main(runs, encoding, l, r, input_, output, f, t, r_):
     # Driver function 
+    makePath(input_)
     runs = runs
     encoding = encoding
     subjects = os.listdir(functional_connectivity)
-    try: subjects.remove(".DS_Store")
-    except: pass
+    subjects.remove(".DS_Store")
     subjects = sorted(subjects)
     subjects = subjects[l:r]
-    g = [(i/10)+0.01 for i in range(0,61,4)]
+    g = [(i/10)+0.01 for i in range(f,t,r_)]
     g = sorted(g, reverse=True)
     try: os.mkdir("Final_Output")
     except: pass
@@ -159,13 +173,17 @@ def main(runs, encoding, l, r):
                     PCorr[i] = getCorrelation(r, e, each)
                     print("Global Coupling: ", g[i], " and Correlation: ", PCorr[i])
                     (J_i)[i] = np.loadtxt("J_i.txt")
-                if not os.path.isdir("./Final_Output/" + each):
-                    os.mkdir("./Final_Output/" + each)
-                if not os.path.isdir("./Final_Output/" + each + "/" + e + "_" + str(r)):
-                    os.mkdir(("./Final_Output/" + each + "/" + e + "_" + str(r)))
-                path = "./Final_Output/" + each + "/" + e + "_" + str(r)
+                if not os.path.isdir("/Final_Output/" + each):
+                    os.mkdir("/Final_Output/" + each)
+                if not os.path.isdir("/Final_Output/" + each + "/" + e + "_" + str(r)):
+                    os.mkdir(("/Final_Output/" + each + "/" + e + "_" + str(r)))
+                path = "/Final_Output/" + each + "/" + e + "_" + str(r)
                 np.savetxt(path + "/J_i.txt", (J_i).T, delimiter = " ")
                 np.savetxt(path + "/PCorr.txt", np.asarray(PCorr), delimiter = " ")
-    os.remove("fMRI.txt")
-    os.remove("J_i.txt")
-    os.remove("tvbii")
+    shutil.move("/Final_Output", output)
+    try:
+        os.remove("fMRI.txt")
+        os.remove("J_i.txt")
+        os.remove("tvbii")
+    except:
+        pass
