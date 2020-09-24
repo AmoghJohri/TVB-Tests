@@ -1,0 +1,1 @@
+    sudo docker run -v /path/to/HCP_YA_BIDS:/path/to/HCP_YA_BIDS  -v /path/to/output_legacy:/Final_Output_Legacy -v /path/to/C_Input:/C_Input amoghjohri/tvbpipeline_aws python pipeline.py legacy 1 LR 0 1 /path/to/HCP_YA_BIDS 0 61 4

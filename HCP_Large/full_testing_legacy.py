@@ -2,6 +2,7 @@
 import os
 import math
 import scipy
+import shutil
 import nitime 
 import warnings
 import subprocess
@@ -36,10 +37,11 @@ def makePath(inp):
     functional_connectivity = path_+"/functional_connectivity/"
     structural_connectivity = path_+"/structural_connectivity/"
 
-def executeC(): 
+def executeC(r, e, s): 
     # store the return code of the c program(return 0) 
     # and display the output 
-    s = subprocess.check_call("cc tvbii_multicore.c -lpthread -lm -lgsl -lgslcblas -o tvbii; ./tvbii param_set.txt sub 1", shell = True) 
+    key = str(r) + "_" + str(e) + "_" + str(s)
+    s = subprocess.check_call("cc tvbii_multicore.c -lpthread -lm -lgsl -lgslcblas -o tvbii" + key + "; ./tvbii" + key + " param_set" + key + ".txt sub" + key + " 1", shell = True) 
 
 def get_fMRI(run, encoding, sub):
     return np.loadtxt(fmri + sub + "/" + sub + "_task-rfMRI_REST" + str(run) + "_" + encoding + "_space-MMP1_desc-preproc_hcp_fMRI.tsv")
@@ -56,13 +58,15 @@ def get_distances(sub):
 
 def make_input(run, encoding, subject_id):
     # does all the book-keeping with respect to arranging and channeling the input files
-    try : os.remove("/C_Input/sub_SC_weights.txt")
+    key = str(run) + "_" + str(encoding) + "_" + str(subject_id)
+    shutil.copy("/C_Input/param_set.txt", "/C_Input/param_set" + key + ".txt")
+    try : os.remove("/C_Input/sub" + key + "_SC_weights.txt")
     except: pass
-    try: os.remove("/C_Input/sub_SC_distances.txt")
+    try: os.remove("/C_Input/sub" + key + "_SC_distances.txt")
     except: pass
-    np.savetxt('/C_Input/sub_SC_weights.txt', (get_weights(subject_id))/np.max(get_weights(subject_id)), delimiter=' ')
-    np.savetxt('/C_Input/sub_SC_distances.txt', (get_distances(subject_id))/np.max(get_distances(subject_id)), delimiter=' ')
-    f = open("/C_Input/param_set.txt", "r")
+    np.savetxt('/C_Input/sub' + key + '_SC_weights.txt', (get_weights(subject_id))/np.max(get_weights(subject_id)), delimiter=' ')
+    np.savetxt('/C_Input/sub' + key + '_SC_distances.txt', (get_distances(subject_id))/np.max(get_distances(subject_id)), delimiter=' ')
+    f = open("/C_Input/param_set" + key + ".txt", "r")
     for line in f:
         temp = line.split()
         break
@@ -70,7 +74,7 @@ def make_input(run, encoding, subject_id):
     # making relavant changes to the parameters file used for simulation
     temp[6] = str(int(0.72 * 1000 * 400))
     temp[7] = str(int(0.72 * 1000))
-    f = open("/C_Input/param_set.txt", "w") 
+    f = open("/C_Input/param_set" + key + ".txt", "w") 
     for each in temp:
         f.write(each)
         f.write(" ") 
@@ -78,7 +82,8 @@ def make_input(run, encoding, subject_id):
 
 def getCorrelation(run, encoding, subject_id):
     # obtains the correlation between empirical functional connectivity and simulated functional connectivity
-    input_path_sim = "fMRI.txt"
+    key = str(run) + "_" + str(encoding) + "_" + str(subject_id)
+    input_path_sim = "sub" + key + "fMRI" + ".txt"
     em_fc_matrix = get_FC(run, encoding, subject_id)
     sampling_interval = 0.72
     uidx = np.triu_indices(379, 1)
@@ -90,24 +95,26 @@ def getCorrelation(run, encoding, subject_id):
     sim_fc = np.arctanh(C.corrcoef)[uidx]
     sim_fc = np.nan_to_num(sim_fc)
     pearson_corr, _ = stat.pearsonr(sim_fc, em_fc)
+    os.remove(input_path_sim)
     return pearson_corr
 
-def alterGlobalCoupling(G):
+def alterGlobalCoupling(G, r, e, s):
     # alters the global coupling value for each iteration of parameter space exploration
-    f = open("/C_Input/param_set.txt", "r")
+    key = str(r) + "_" + str(e) + "_" + str(s)
+    f = open("/C_Input/param_set" + key + ".txt", "r")
     for line in f:
         temp = line.split()
         break
     f.close()
     temp[1] = str(G) 
-    f = open("/C_Input/param_set.txt", "w") 
+    f = open("/C_Input/param_set" + key + ".txt", "w")
     for each in temp:
         f.write(each)
         f.write(" ") 
     f.close()
 
 
-def main(runs, encoding, l, r, input_, output, f, t, r_):
+def main(runs, encoding, l, r, input_, f, t, r_):
     # Driver function 
     makePath(input_)
     runs = runs
@@ -130,8 +137,8 @@ def main(runs, encoding, l, r, input_, output, f, t, r_):
                     print("Encoding: ", e)
                     print("Run: ", r)
                     print("Global Coupling: ", g[i])
-                    alterGlobalCoupling(g[i])
-                    executeC()
+                    alterGlobalCoupling(g[i], r, e, each)
+                    executeC(r, e, each)
                     PCorr[i] = getCorrelation(r, e, each)
                     print("Global Coupling: ", g[i], " and Correlation: ", PCorr[i])
                 if not os.path.isdir("/Final_Output_Legacy/" + each):
@@ -140,8 +147,11 @@ def main(runs, encoding, l, r, input_, output, f, t, r_):
                     os.mkdir(("/Final_Output_Legacy/" + each + "/" + e + "_" + str(r)))
                 path = "/Final_Output_Legacy/" + each + "/" + e + "_" + str(r)
                 np.savetxt(path + "/PCorr.txt", np.asarray(PCorr), delimiter = " ")
-    try:
-        os.remove("fMRI.txt")
-        os.remove("tvbii")
-    except:
-        pass
+                key =str(r) + "_" + str(e) + "_" + str(each)
+                try:
+                    os.remove("/C_Input/param_set" + key + ".txt")
+                    os.remove("/C_Input/sub" + key + "_SC_distances.txt")
+                    os.remove("/C_Input/sub" + key + "_SC_weights.txt")
+                    os.remove("tvbii" + key)
+                except:
+                    pass

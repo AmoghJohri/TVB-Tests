@@ -102,6 +102,8 @@ int importGlobalConnectivity(char *SC_cap_filename, char *SC_dist_filename, char
     file_dist=fopen(SC_dist_filename, "r");
     if (file_cap==NULL || file_dist==NULL)
     {
+        printf("%s\n", SC_cap_filename);
+        printf("%s\n", SC_dist_filename);
         printf( "\nERROR: Could not open SC files. Terminating... \n\n");
         exit(0);
     }
@@ -709,7 +711,8 @@ int main(int argc, char *argv[])
     fclose(file);
     
     char output_file[300];memset(output_file, 0, 300*sizeof(char));
-    strcpy(output_file, "fMRI.txt");
+    char output_file_[300];memset(output_file_, 0, 300*sizeof(char));
+    strcpy(output_file, strcat(strcat(output_file_, argv[2]), "fMRI.txt"));
     
     
     /* Add fake regions to make region count a multiple of vectorization grade */

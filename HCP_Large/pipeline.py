@@ -8,10 +8,9 @@ enc    = sys.argv[3]
 l      = sys.argv[4]
 r      = sys.argv[5]
 input_ = sys.argv[6]
-output = sys.argv[7]
-from_ = sys.argv[8]
-to = sys.argv[9]
-ran = sys.argv[10]
+from_ = sys.argv[7]
+to = sys.argv[8]
+ran = sys.argv[9]
 
 l = int(l)
 r = int(r) 
@@ -27,6 +26,6 @@ if run == "both":
 else:
     run = [int(run)]
 if method == "rsHRF":
-    full_testing.main(run, enc, l, r, input_, output, from_, to, ran)
+    full_testing.main(run, enc, l, r, input_, from_, to, ran)
 elif method == "legacy":
-    full_testing_legacy.main(run, enc, l, r, input_, output, from_, to, ran)
+    full_testing_legacy.main(run, enc, l, r, input_, from_, to, ran)

@@ -566,10 +566,13 @@ void *run_simulation(void *arg)
     }
 
     /* Writing the Feedback Inhibhition Control Parameter */
+    char output_file_[300];memset(output_file_, 0, 300*sizeof(char));
+    strcpy(output_file, strcat(strcat(output_file_, output_file), "J_i.txt"));
+    
     if (t_id == 0)
     {
         printf("\n");           
-        FILE *FCout = fopen("J_i.txt", "w+");
+        FILE *FCout = fopen(output_file_, "w+");
         for (j = 0; j < nodes; j++) 
         {
             fprintf(FCout, "%.5f ",J_i[j]);
@@ -893,7 +896,8 @@ int main(int argc, char* argv[])
     fclose(file);
     /* file name where the fMRI output gets stored */
     char output_file[300]; memset(output_file, 0, 300*sizeof(char));
-    strcpy(output_file, "fMRI.txt");
+    char output_file_[300];memset(output_file_, 0, 300*sizeof(char));
+    strcpy(output_file, strcat(strcat(output_file_, argv[2]), "fMRI.txt"));
 
     /* Add fake regions to make region count a multiple of vectorization grade */
     if (nodes % vectorization_grade != 0)

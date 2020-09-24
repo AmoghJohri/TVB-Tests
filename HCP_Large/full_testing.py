@@ -36,10 +36,11 @@ def makePath(inp):
     functional_connectivity = path_+"/functional_connectivity/"
     structural_connectivity = path_+"/structural_connectivity/"
 
-def executeC(): 
+def executeC(r, e, s): 
     # store the return code of the c program(return 0) 
     # and display the output 
-    s = subprocess.check_call("cc main.c -lpthread -lm -lgsl -lgslcblas -o tvbii; ./tvbii param_set weights distances ROIts_retrievedHRF 1", shell = True) 
+    key = str(r) + "_" + str(e) + "_" + str(s)
+    s = subprocess.check_call("cc main.c -lpthread -lm -lgsl -lgslcblas -o tvbii" + key + "_rsHRF" + "; ./tvbii" + key + "_rsHRF" + " param_set" + key + "_rsHRF" + " weights" + key + "_rsHRF" + " distances" + key + "_rsHRF" + " ROIts_retrievedHRF" + key + "_rsHRF" + " 1", shell = True) 
 
 def get_fMRI(run, encoding, sub):
     return np.loadtxt(fmri + sub + "/" + sub + "_task-rfMRI_REST" + str(run) + "_" + encoding + "_space-MMP1_desc-preproc_hcp_fMRI.tsv")
@@ -84,22 +85,24 @@ def getHRF(run, encoding, subject_id):
     bf = basis_functions.basis_functions.get_basis_function(bold_sig.shape, para)
     beta_hrf, event_bold = utils.hrf_estimation.compute_hrf(bold_sig, para, [], -1, bf)
     hrfa = np.dot(bf, beta_hrf[np.arange(0, bf.shape[1]), :])
-    np.savetxt('/C_Input/ROIts_retrievedHRF.txt', hrfa.T, delimiter=' ')
+    np.savetxt('/C_Input/ROIts_retrievedHRF' + str(run) + '_' + str(encoding) + '_' + str(subject_id) + '_rsHRF.txt', hrfa.T, delimiter=' ')
     # returns the length of the retrieved HRF and the BOLD Repetition Time
     return hrfa.shape[0], para['TR']
 
 def make_input(run, encoding, subject_id):
     # does all the book-keeping with respect to arranging and channeling the input files
-    try : os.remove("/C_Input/weights.txt")
+    key = str(run) + "_" + str(encoding) + "_" + str(subject_id) + "_rsHRF"
+    shutil.copy("/C_Input/param_set.txt", "/C_Input/param_set" + key + ".txt")
+    try : os.remove("/C_Input/weights" + key + ".txt")
     except: pass
-    try: os.remove("/C_Input/distances.txt")
+    try: os.remove("/C_Input/distances" + key + ".txt")
     except: pass
-    try: os.remove("/C_Input/ROIts_retrievedHRF.txt")
+    try: os.remove("/C_Input/ROIts_retrievedHRF" + key + ".txt")
     except: pass
-    np.savetxt('/C_Input/weights.txt',(get_weights(subject_id))/np.max(get_weights(subject_id)), delimiter=' ')
-    np.savetxt('/C_Input/distances.txt', (get_distances(subject_id))/np.max(get_distances(subject_id)), delimiter=' ')
+    np.savetxt('/C_Input/weights' + key + '.txt',(get_weights(subject_id))/np.max(get_weights(subject_id)), delimiter=' ')
+    np.savetxt('/C_Input/distances' + key + '.txt', (get_distances(subject_id))/np.max(get_distances(subject_id)), delimiter=' ')
     hrf_len, TR = getHRF(run, encoding, subject_id)
-    f = open("/C_Input/param_set.txt", "r")
+    f = open("/C_Input/param_set" + key + ".txt", "r")
     for line in f:
         temp = line.split()
         break
@@ -108,7 +111,7 @@ def make_input(run, encoding, subject_id):
     temp[6] = str(int(TR * 1000 * 400))
     temp[7] = str(int(TR * 1000))
     temp[10] = str(hrf_len)
-    f = open("/C_Input/param_set.txt", "w") 
+    f = open("/C_Input/param_set" + key + ".txt", "w")
     for each in temp:
         f.write(each)
         f.write(" ") 
@@ -116,7 +119,8 @@ def make_input(run, encoding, subject_id):
 
 def getCorrelation(run, encoding, subject_id):
     # obtains the correlation between empirical functional connectivity and simulated functional connectivity
-    input_path_sim = "fMRI.txt"
+    key = str(run) + "_" + str(encoding) + "_" + str(subject_id) + "_rsHRF"
+    input_path_sim = "weights" + key + "fMRI.txt"
     em_fc_matrix = get_FC(run, encoding, subject_id)
     sampling_interval = 0.72
     uidx = np.triu_indices(379, 1)
@@ -128,23 +132,25 @@ def getCorrelation(run, encoding, subject_id):
     sim_fc = np.arctanh(C.corrcoef)[uidx]
     sim_fc = np.nan_to_num(sim_fc)
     pearson_corr, _ = stat.pearsonr(sim_fc, em_fc)
+    os.remove(input_path_sim)
     return pearson_corr
 
-def alterGlobalCoupling(G):
+def alterGlobalCoupling(G, r, e, s):
     # alters the global coupling value for each iteration of parameter space exploration
-    f = open("/C_Input/param_set.txt", "r")
+    key = str(r) + "_" + str(e) + "_" + str(s) + "_rsHRF"
+    f = open("/C_Input/param_set" + key + ".txt", "r")
     for line in f:
         temp = line.split()
         break
     f.close()
     temp[1] = str(G) 
-    f = open("/C_Input/param_set.txt", "w") 
+    f = open("/C_Input/param_set" + key + ".txt", "w")
     for each in temp:
         f.write(each)
         f.write(" ") 
     f.close()
 
-def main(runs, encoding, l, r, input_, output, f, t, r_):
+def main(runs, encoding, l, r, input_, f, t, r_):
     # Driver function 
     makePath(input_)
     runs = runs
@@ -160,6 +166,7 @@ def main(runs, encoding, l, r, input_, output, f, t, r_):
     for each in subjects:
         for e in encoding:
             for r in runs:
+                key =str(r) + "_" + str(e) + "_" + str(each) + "_rsHRF"
                 J_i = np.asarray([[0.0 for i in range(379)] for j in range(len(g))])
                 PCorr = [0. for i in range(len(g))]
                 make_input(r, e, each)
@@ -168,11 +175,11 @@ def main(runs, encoding, l, r, input_, output, f, t, r_):
                     print("Encoding: ", e)
                     print("Run: ", r)
                     print("Global Coupling: ", g[i])
-                    alterGlobalCoupling(g[i])
-                    executeC()
+                    alterGlobalCoupling(g[i], r, e, each)
+                    executeC(r, e, each)
                     PCorr[i] = getCorrelation(r, e, each)
                     print("Global Coupling: ", g[i], " and Correlation: ", PCorr[i])
-                    (J_i)[i] = np.loadtxt("J_i.txt")
+                    (J_i)[i] = np.loadtxt("weights" + key + "fMRI.txtJ_i.txt")
                 if not os.path.isdir("/Final_Output/" + each):
                     os.mkdir("/Final_Output/" + each)
                 if not os.path.isdir("/Final_Output/" + each + "/" + e + "_" + str(r)):
@@ -180,10 +187,12 @@ def main(runs, encoding, l, r, input_, output, f, t, r_):
                 path = "/Final_Output/" + each + "/" + e + "_" + str(r)
                 np.savetxt(path + "/J_i.txt", (J_i).T, delimiter = " ")
                 np.savetxt(path + "/PCorr.txt", np.asarray(PCorr), delimiter = " ")
-    shutil.move("/Final_Output", output)
-    try:
-        os.remove("fMRI.txt")
-        os.remove("J_i.txt")
-        os.remove("tvbii")
-    except:
-        pass
+                try:
+                    os.remove("/C_Input/param_set" + key + ".txt")
+                    os.remove("/C_Input/" + "distances" + key + ".txt")
+                    os.remove("/C_Input/" + "weights" + key + ".txt")
+                    os.remove("/C_Input/ROIts_retrievedHRF" + key + ".txt")
+                    os.remove("tvbii" + key)
+                    os.remove("weights" + key + "fMRI.txtJ_i.txt")
+                except:
+                    pass
